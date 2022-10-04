@@ -47,6 +47,7 @@
               </div>
             <% end %>
             <%= if Enum.member?(@chart_config.market, :market_cap) do %>
+<!--
             <div class="dashboard-banner-chart-legend-item market-cap-per-day">
                 <span class="dashboard-banner-chart-legend-label">
                 <%= gettext "Market Cap" %>
@@ -57,9 +58,12 @@
                   </span>
                 </div>
             </div>
+-->
             <% end %>
-          <% end %>
+	  <% end %>
+
           <%= render BlockScoutWeb.ChainView, "gas_price_oracle_legend_item.html", gas_price: @gas_price %>
+
           <%= if Map.has_key?(@chart_config, :transactions) do %>
 
             <% transaction_chart_config = @chart_config.transactions%>
@@ -146,20 +150,20 @@
     </div>
   </div>
 </div>
-<section class="container">
+<section class="container chain-card-container">
   <div class="card card-chain-blocks js-ad-dependant-mb-3">
     <div class="card-body">
       <%= link(gettext("View All Blocks"), to: blocks_path(BlockScoutWeb.Endpoint, :index), class: "btn-line float-right") %>
       <h2 class="card-title"><%= gettext "Blocks" %></h2>
-      <div class="row" data-selector="chain-block-list" data-url="<%= chain_blocks_path(@conn, :chain_blocks) %>">
+      <div data-selector="chain-block-list" data-url="<%= chain_blocks_path(@conn, :chain_blocks) %>">
         <button data-selector="error-message" class="alert alert-danger col-12 text-left" style="display: none;">
           <span class="alert-link">
             <%= gettext "Something went wrong, click to reload." %>
           </span>
         </button>
-        <div hidden data-selector="loading-message" class="col-lg-3" >
+        <div hidden data-selector="loading-message" >
          <div data-selector="chain-block">
-           <div class="tile tile-type-block n-p d-flex flex-column">
+           <div class="tile tile-type-block">
              <a class="tile-title"><span class="tile-loader tile-label-loader"></span> </a>
              <div class="tile-bottom-contents">
                <div class="dark-block-loader"></div>
@@ -168,10 +172,10 @@
            </div>
          </div>
         </div>
-        <div hidden data-selector="loading-message" class="col-lg-3" >
+        <div hidden data-selector="loading-message"  >
          <div data-selector="chain-block">
-           <div class="tile tile-type-block n-p d-flex flex-column">
-             <a class="tile-title"><span class="tile-loader tile-label-loader"></span> </a> 
+           <div class="tile tile-type-block ">
+             <a class="tile-title"><span class="tile-loader tile-label-loader"></span> </a>
              <div class="tile-bottom-contents">
                <div class="dark-block-loader"></div>
                <div class="dark-block-loader"></div>
@@ -179,10 +183,10 @@
            </div>
          </div>
         </div>
-        <div hidden data-selector="loading-message" class="col-lg-3" >
+        <div hidden data-selector="loading-message" >
          <div data-selector="chain-block">
-           <div class="tile tile-type-block n-p d-flex flex-column">
-             <a class="tile-title"><span class="tile-loader tile-label-loader"></span> </a> 
+           <div class="tile tile-type-block">
+             <a class="tile-title"><span class="tile-loader tile-label-loader"></span> </a>
              <div class="tile-bottom-contents">
                <div class="dark-block-loader"></div>
                <div class="dark-block-loader"></div>
@@ -190,9 +194,9 @@
            </div>
          </div>
         </div>
-        <div hidden data-selector="loading-message" class="col-lg-3" >
+        <div hidden data-selector="loading-message" >
          <div data-selector="chain-block">
-           <div class="tile tile-type-block n-p d-flex flex-column">
+           <div class="tile tile-type-block">
              <a class="tile-title"><span class="tile-loader tile-label-loader"></span> </a>
              <div class="tile-bottom-contents">
               <div class="dark-block-loader"></div>
@@ -200,7 +204,7 @@
             </div>
            </div>
          </div>
-        </div>   
+        </div>
       </div>
     </div>
   </div>

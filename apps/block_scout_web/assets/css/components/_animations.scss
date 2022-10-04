@@ -71,21 +71,15 @@
 .fade-up-blocks-chain {
   will-change: transform, opacity, width;
   white-space: nowrap;
-  animation: fade-up-blocks-chain 0.3s cubic-bezier(0.455, 0.03, 0.515, 0.955);
 
-  @include media-breakpoint-down(md) {
-    animation: fade-up 0.6s cubic-bezier(0.455, 0.03, 0.515, 0.955);
-  }
+  animation: fade-up 0.6s cubic-bezier(0.455, 0.03, 0.515, 0.955);
 }
 
 .fade-up {
   will-change: transform, opacity, height;
-  animation: fade-up 0.6s cubic-bezier(0.455, 0.03, 0.515, 0.955);
 
-  @media (max-width: $breakpoint-md) {
-    max-height: 300px;
-    animation: fade-up--mobile 0.6s cubic-bezier(0.455, 0.03, 0.515, 0.955);
-  }
+  max-height: 300px;
+  animation: fade-up--mobile 0.6s cubic-bezier(0.455, 0.03, 0.515, 0.955);
 }
 
 .shrink-out {

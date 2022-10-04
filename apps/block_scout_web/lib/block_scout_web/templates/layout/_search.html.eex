@@ -17,6 +17,7 @@
 			<%= render BlockScoutWeb.IconsView, "_search_icon.html" %>
 			</button>
 		</div>
+<!--
 		<div class="input-group-append right desktop-only">
 			<div
 			id="slash-icon"
@@ -30,6 +31,7 @@
 			/
 			</div>
 		</div>
+-->
 	</div>
 	<button class="btn btn-outline-success my-2 my-sm-0 sr-only hidden" type="submit"><%= gettext "Search" %></button>
 </div>

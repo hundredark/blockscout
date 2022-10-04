@@ -15,7 +15,7 @@ export async function addChainToMM ({ btn }) {
         method: 'wallet_addEthereumChain',
         params: [{
           chainId: chainIDFromInstance,
-          chainName: subNetwork,
+          chainName: process.env.NETWORK,
           nativeCurrency: {
             name: coinName,
             symbol: coinName,
@@ -28,7 +28,7 @@ export async function addChainToMM ({ btn }) {
     } else {
       btn.tooltip('dispose')
       btn.tooltip({
-        title: `You're already connected to ${subNetwork}`,
+        title: `You're already connected to ${process.env.NETWORK}`,
         trigger: 'click',
         placement: 'bottom'
       }).tooltip('show')

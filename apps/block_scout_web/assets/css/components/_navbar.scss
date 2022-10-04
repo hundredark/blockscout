@@ -93,6 +93,7 @@ $navbar-logo-width: 100% !default;
   }
 
   .navbar-toggler {
+    display: none;
     outline: none;
     color: $primary;
     padding-right: 0px;
@@ -238,6 +239,14 @@ $navbar-logo-width: 100% !default;
   display: inline-flex;
   .navbar-logo {
     max-width: 100%;
+  }
+  @include media-breakpoint-down(md) {
+     display: block;
+     text-align: center;
+     width: 100%;
+     box-sizing: border-box;
+     margin: 0;
+     padding: 8px 0 16px;
   }
 }
 

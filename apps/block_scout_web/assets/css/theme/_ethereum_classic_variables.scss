@@ -13,7 +13,8 @@ $footer-social-icon-color: #5959d8;
 
 // dashboard
 $dashboard-line-color-price: $secondary;
-$dashboard-line-color-market: $tertiary;
+$dashboard-line-color-market: $warning;
+$dashboard-line-color-transactions: $tertiary;
 $dashboard-banner-gradient-start: #1b1b39;
 $dashboard-banner-gradient-end: #27275f;
 
@@ -22,7 +23,7 @@ $dashboard-stats-item-label-color: $additional-font;
 $dashboard-banner-chart-legend-value-color: #fff; // chart labels
 $dashboard-stats-item-value-color: #fff; // stat values
 
-$dashboard-stats-item-border-color: $secondary; // stat border
+$dashboard-stats-item-border-color: $tertiary; // stat border
 $dashboard-banner-network-plain-container-background-color: #2d2d69; // stats bg
 
 // navigation
@@ -50,7 +51,7 @@ $card-tab-active: $tertiary;
 // ETC theme's idiosyncrasies
 .layout-container {
   .navbar {
-    box-shadow: 0 0 30px 0 rgba(21, 53, 80, 0.12);
+    box-shadow: 0 0 3px 0 rgba(21, 53, 80, 0.12);
   }
 
   .dropdown-item:hover,
@@ -72,6 +73,8 @@ $card-tab-active: $tertiary;
     filter: brightness(0) invert(1);
   }
 }
+
+$navbar-logo-height: 32px;
 
 // Badges
 $badge-neutral-color: $tertiary;
