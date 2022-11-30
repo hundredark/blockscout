@@ -1642,6 +1642,33 @@ defmodule Explorer.Chain do
     end
   end
 
+  @spec search_token_asset(String.t()) :: [Token.t()]
+  def search_token_asset(string) do
+    case prepare_search_term(string) do
+      {:some, term} ->
+        query =
+          from(token in Token,
+            where: fragment("to_tsvector(symbol || ' ' || name ) @@ to_tsquery(?)", ^term),
+            select: %{
+              symbol: token.symbol,
+              name: token.name,
+              holder_count: token.holder_count,
+              contract_address_hash: token.contract_address_hash,
+              decimals: token.decimals,
+              type: token.type,
+              mixin_asset_id: token.mixin_asset_id,
+              total_supply: token.total_supply
+            },
+            order_by: [desc: token.holder_count]
+          )
+
+        Repo.all(query)
+
+      _ ->
+        []
+    end
+  end
+
   @spec search_contract(String.t()) :: [SmartContract.t()]
   def search_contract(string) do
     case prepare_search_term(string) do
@@ -2990,7 +3017,10 @@ defmodule Explorer.Chain do
         select: last_fetched_counter.value
       )
 
-    Repo.one!(query) || Decimal.new(0)
+    case Repo.exists?(query) do
+      true -> Repo.one!(query)
+      false -> Decimal.new(0)
+    end
   end
 
   defp block_status({number, timestamp}) do

@@ -1,6 +1,8 @@
 defmodule BlockScoutWeb.API.RPC.AddressController do
   use BlockScoutWeb, :controller
 
+  require Decimal
+
   alias BlockScoutWeb.API.RPC.Helpers
   alias Explorer.{Chain, Etherscan}
   alias Explorer.Chain.{Address, Wei}
@@ -217,6 +219,81 @@ defmodule BlockScoutWeb.API.RPC.AddressController do
 
       {_, :not_found} ->
         render(conn, :error, error: "No tokens found", data: [])
+    end
+  end
+
+  def assets(conn, params) do
+    with {:address_param, {:ok, address_param}} <- fetch_address(params),
+         {:format, {:ok, address_hash}} <- to_address_hash(address_param),
+         {:address, :ok} <- {:address, Chain.check_address_exists(address_hash)},
+         {:block_param, {:ok, block}} <- {:block_param, fetch_block_param(params)},
+         {:balance, {:ok, balance}} <- {:balance, Blocks.get_balance_as_of_block(address_hash, block)},
+         {:ok, token_list} <- list_tokens(address_hash) do
+      conf = Application.get_env(:block_scout_web, BlockScoutWeb.API.RPC.AddressController)
+      mvm_default_assets = conf[:mvm_default_assets]
+      user_assets_with_balance = Enum.map(token_list, fn x -> to_string(x.contract_address_hash) end)
+
+      total_assets = Chain.list_top_tokens("")
+
+      default_assets =
+        Enum.filter(total_assets, fn x ->
+          contract = to_string(x.contract_address_hash)
+
+          not Enum.member?(user_assets_with_balance, contract) and
+            Enum.member?(mvm_default_assets, contract)
+        end)
+
+      merged =
+        Enum.map(token_list ++ default_assets, fn x ->
+          %{
+            "balance" =>
+              case Map.has_key?(x, :balance) do
+                true -> to_string(x.balance)
+                _ -> "0"
+              end,
+            "contractAddress" => to_string(x.contract_address_hash),
+            "mixinAssetId" => x.mixin_asset_id,
+            "name" => x.name,
+            "decimals" => to_string(x.decimals),
+            "symbol" => x.symbol,
+            "type" => x.type
+          }
+        end)
+
+      merged = [
+        %{
+          "balance" => Decimal.to_string(balance.value),
+          "contractAddress" => "",
+          "mixinAssetId" => "43d61dcd-e413-450d-80b8-101d5e903357",
+          "name" => "Ether",
+          "decimals" => "18",
+          "symbol" => "ETH",
+          "type" => ""
+        }
+        | merged
+      ]
+
+      final = Enum.sort_by(merged, fn x -> String.to_integer(x["balance"]) end, :desc)
+      render(conn, :assets, %{asset_list: final})
+    else
+      {:address_param, :error} ->
+        render(conn, :error, error: "Query parameter 'address' is required")
+
+      {:format, :error} ->
+        render(conn, :error, error: "Invalid address hash")
+
+      {_, :not_found} ->
+        render(conn, :error, error: "No tokens found", data: [])
+
+      {:block_param, :error} ->
+        conn
+        |> put_status(400)
+        |> render(:eth_get_balance_error, %{error: "Invalid block"})
+
+      {:balance, {:error, :not_found}} ->
+        conn
+        |> put_status(404)
+        |> render(:eth_get_balance_error, %{error: "Balance not found"})
     end
   end
 

@@ -52,6 +52,10 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
     RPCView.render("show.json", data: data)
   end
 
+  def render("assets.json", %{asset_list: asset_list}) do
+    RPCView.render("show.json", data: asset_list)
+  end
+
   def render("getminedblocks.json", %{blocks: blocks}) do
     data = Enum.map(blocks, &prepare_block/1)
     RPCView.render("show.json", data: data)
@@ -208,6 +212,7 @@ defmodule BlockScoutWeb.API.RPC.AddressView do
     %{
       "balance" => to_string(token.balance),
       "contractAddress" => to_string(token.contract_address_hash),
+      "mixinAssetId" => token.mixin_asset_id,
       "name" => token.name,
       "decimals" => to_string(token.decimals),
       "symbol" => token.symbol,
