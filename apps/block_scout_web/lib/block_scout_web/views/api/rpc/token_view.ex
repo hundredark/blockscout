@@ -13,12 +13,17 @@ defmodule BlockScoutWeb.API.RPC.TokenView do
   end
 
   def render("getmixinassets.json", %{asset_list: asset_list}) do
-    data = Enum.map(asset_list, &prepare_token/1)
+    data = Enum.map(asset_list, &prepare_asset/1)
     RPCView.render("show.json", data: data)
   end
 
   def render("search.json", %{list: asset_list}) do
-    data = Enum.map(asset_list, &prepare_token/1)
+    data = Enum.map(asset_list, &prepare_asset/1)
+    RPCView.render("show.json", data: data)
+  end
+
+  def render("batchsearch.json", %{list: asset_list}) do
+    data = Enum.map(asset_list, &prepare_asset/1)
     RPCView.render("show.json", data: data)
   end
 
@@ -34,8 +39,34 @@ defmodule BlockScoutWeb.API.RPC.TokenView do
       "totalSupply" => to_string(token.total_supply),
       "decimals" => to_string(token.decimals),
       "contractAddress" => to_string(token.contract_address_hash),
-      "mixinAssetId" => token.mixin_asset_id
+      "mixinAssetId" => if(is_nil(token.mixin_asset_id), do: "", else: token.mixin_asset_id)
     }
+  end
+
+  defp prepare_asset(asset) do
+    init = %{
+      "contractAddress" => to_string(asset.contract_address_hash),
+      "nativeContractAddress" => if(is_nil(asset.native_contract_address), do: "", else: asset.native_contract_address),
+      "mixinAssetId" => asset.mixin_asset_id,
+      "name" => asset.name,
+      "decimals" => to_string(asset.decimals),
+      "symbol" => asset.symbol,
+      "type" => asset.type,
+      "priceUSD" => asset.price_usd,
+      "priceBTC" => asset.price_btc
+    }
+
+    Enum.reduce(
+      [:balance, :chain_id, :chain_name, :chain_symbol, :chain_icon_url],
+      init,
+      fn field, acc ->
+        if is_nil(asset[field]) do
+          acc
+        else
+          Map.put(acc, field, asset[field])
+        end
+      end
+    )
   end
 
   defp prepare_token_holder(token_holder) do

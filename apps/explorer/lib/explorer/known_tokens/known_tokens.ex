@@ -27,9 +27,10 @@ defmodule Explorer.KnownTokens do
 
   # Callback for successful fetch
   @impl GenServer
-  def handle_info({_ref, {:ok, addresses}}, state) do
+  def handle_info({_ref, {:ok, list}}, state) do
     if store() == :ets do
-      records = Enum.map(addresses, fn x -> {x["symbol"], x["address"]} end)
+      tokens = if(is_list(list), do: list, else: list["data"])
+      records = Enum.map(tokens, fn x -> to_tuple(x) end)
 
       :ets.insert(table_name(), records)
     end
@@ -91,17 +92,19 @@ defmodule Explorer.KnownTokens do
   @doc """
   Returns a specific address from the known tokens by symbol
   """
-  @spec lookup(String.t()) :: {:ok, Hash.Address.t()} | :error | nil
-  def lookup(symbol) do
+  @spec lookup(String.t()) :: {:ok, tuple()} | {:error, :not_found} | {:error, :no_cache}
+  def lookup(asset_id) do
     if store() == :ets && enabled?() do
       if ets_table_exists?(table_name()) do
-        case :ets.lookup(table_name(), symbol) do
-          [{_symbol, address} | _] -> Hash.Address.cast(address)
-          _ -> nil
+        case :ets.lookup(table_name(), asset_id) do
+          [res | _] -> {:ok, res}
+          [] -> {:error, :not_found}
         end
       else
-        nil
+        {:error, :no_cache}
       end
+    else
+      {:error, :no_cache}
     end
   end
 
@@ -143,5 +146,9 @@ defmodule Explorer.KnownTokens do
 
   defp enabled? do
     Application.get_env(:explorer, __MODULE__, [])[:enabled] == true
+  end
+
+  defp to_tuple(asset) do
+    {asset["asset_id"], asset["chain_id"], asset["name"], asset["symbol"], asset["icon_url"]}
   end
 end

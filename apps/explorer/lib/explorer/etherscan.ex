@@ -335,7 +335,8 @@ defmodule Explorer.Etherscan do
           symbol: t.symbol,
           type: t.type,
           id: ctb.token_id,
-          mixin_asset_id: t.mixin_asset_id
+          mixin_asset_id: t.mixin_asset_id,
+          native_contract_address: t.native_contract_address
         }
       )
 

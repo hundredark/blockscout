@@ -88,7 +88,7 @@ defmodule Explorer.Chain do
   }
 
   alias Explorer.Market.MarketHistoryCache
-  alias Explorer.{PagingOptions, Repo}
+  alias Explorer.{Etherscan, ExchangeRates, KnownTokens, PagingOptions, Repo}
   alias Explorer.SmartContract.Helper
 
   alias Dataloader.Ecto, as: DataloaderEcto
@@ -1676,13 +1676,92 @@ defmodule Explorer.Chain do
     end
   end
 
+  def search_batch_tokens(index_type, indices, user) do
+    if is_nil(user) do
+      Enum.map(
+        batch_search_tokens_without_user(index_type, indices),
+        fn x -> Map.from_struct(x) end
+      )
+    else
+      batch_search_tokens_with_user(index_type, indices, user)
+    end
+  end
+
+  defp batch_search_tokens_without_user(index_type, indices) do
+    case index_type do
+      "contract" ->
+        address_hashes =
+          Enum.map(indices, fn x ->
+            x
+            |> Hash.Address.cast()
+            |> elem(1)
+          end)
+
+        total_tokens = list_top_tokens("", paging_options: %PagingOptions{page_size: 1000})
+
+        Enum.filter(total_tokens, fn x ->
+          Enum.member?(address_hashes, x.contract_address_hash)
+        end)
+
+      "uuid" ->
+        query =
+          from(
+            token in Token,
+            where: token.mixin_asset_id in ^indices
+          )
+
+        Repo.all(query)
+    end
+  end
+
+  defp batch_search_tokens_with_user(index_type, indices, user_hash) do
+    tokens_with_balance =
+      Enum.filter(
+        Etherscan.list_tokens(user_hash),
+        fn x ->
+          index = if(index_type == "contract", do: x.contract_address_hash, else: x.mixin_asset_id)
+          Enum.member?(indices, index)
+        end
+      )
+
+    fetched_token_indices =
+      Enum.map(tokens_with_balance, fn x ->
+        if(index_type == "contract", do: x.contract_address_hash, else: x.mixin_asset_id)
+      end)
+
+    rest_token_indices =
+      Enum.filter(indices, fn x ->
+        case index_type do
+          "contract" ->
+            {:ok, hash} = Hash.Address.cast(x)
+            not Enum.member?(fetched_token_indices, hash)
+
+          "uuid" ->
+            not Enum.member?(fetched_token_indices, x)
+        end
+      end)
+
+    rest_tokens =
+      Enum.map(
+        batch_search_tokens_without_user(index_type, rest_token_indices),
+        fn x ->
+          x
+          |> Map.from_struct()
+          |> Map.put(:balance, "0")
+        end
+      )
+
+    tokens_with_balance ++ rest_tokens
+  end
+
   @spec search_token_asset(String.t()) :: [Token.t()]
   def search_token_asset(string) do
     case prepare_search_term(string) do
       {:some, term} ->
         query =
           from(token in Token,
-            where: fragment("to_tsvector(symbol || ' ' || name ) @@ to_tsquery(?)", ^term),
+            where:
+              fragment("to_tsvector(symbol || ' ' || name || ' ' || native_contract_address) @@ to_tsquery(?)", ^term),
             select: %{
               symbol: token.symbol,
               name: token.name,
@@ -1691,12 +1770,40 @@ defmodule Explorer.Chain do
               decimals: token.decimals,
               type: token.type,
               mixin_asset_id: token.mixin_asset_id,
+              native_contract_address: token.native_contract_address,
               total_supply: token.total_supply
             },
             order_by: [desc: token.holder_count]
           )
 
-        Repo.all(query)
+        if Repo.exists?(query) do
+          Repo.all(query)
+        else
+          case Hash.Address.cast(string) do
+            {:ok, address_hash} ->
+              query =
+                from(token in Token,
+                  where: token.contract_address_hash == ^address_hash,
+                  select: %{
+                    symbol: token.symbol,
+                    name: token.name,
+                    holder_count: token.holder_count,
+                    contract_address_hash: token.contract_address_hash,
+                    decimals: token.decimals,
+                    type: token.type,
+                    mixin_asset_id: token.mixin_asset_id,
+                    native_contract_address: token.native_contract_address,
+                    total_supply: token.total_supply
+                  },
+                  order_by: [desc: token.holder_count]
+                )
+
+              Repo.all(query)
+
+            _ ->
+              []
+          end
+        end
 
       _ ->
         []
@@ -2486,6 +2593,19 @@ defmodule Explorer.Chain do
     paging_options = Keyword.get(options, :paging_options, @default_paging_options)
 
     fetch_top_tokens(filter, paging_options)
+  end
+
+  def list_erc20_tokens_with_mixin_asset_id do
+    query =
+      from(t in Token,
+        where: t.total_supply > ^0,
+        where: t.type == "ERC-20",
+        where: not is_nil(t.mixin_asset_id),
+        order_by: [desc_nulls_last: t.holder_count, asc: t.name],
+        preload: [:contract_address]
+      )
+
+    Repo.all(query)
   end
 
   defp fetch_top_tokens(filter, paging_options) do
@@ -5203,6 +5323,57 @@ defmodule Explorer.Chain do
     |> CurrentTokenBalance.last_token_balances(paging_options)
     |> page_current_token_balances(paging_options)
     |> Repo.all()
+  end
+
+  def fetch_token_price(token) do
+    asset_price = ExchangeRates.lookup(token.mixin_asset_id)
+
+    if is_nil(asset_price) do
+      %{
+        price_usd: "0",
+        price_btc: "0"
+      }
+    else
+      %{
+        price_usd: Decimal.to_string(asset_price.usd_value),
+        price_btc: Decimal.to_string(asset_price.btc_value)
+      }
+    end
+  end
+
+  @spec token_add_price_and_chain_info(Token.t()) ::
+          %{
+            :price_btc => binary(),
+            :price_usd => binary(),
+            :chain_id => String.t() | nil,
+            :chain_name => String.t() | nil,
+            :chain_symbol => String.t() | nil,
+            :chain_icon_url => String.t() | nil
+          }
+  def token_add_price_and_chain_info(token) do
+    price = fetch_token_price(token)
+
+    with {:ok, asset_tuple} <- KnownTokens.lookup(token.mixin_asset_id),
+         {:ok, chain_tuple} <- KnownTokens.lookup(elem(asset_tuple, 1)) do
+      info =
+        price
+        |> Map.put(:chain_id, elem(chain_tuple, 0))
+        |> Map.put(:chain_name, elem(chain_tuple, 2))
+        |> Map.put(:chain_symbol, elem(chain_tuple, 3))
+        |> Map.put(:chain_icon_url, elem(chain_tuple, 4))
+
+      info
+    else
+      {:error, _} ->
+        info =
+          price
+          |> Map.put(:chain_id, nil)
+          |> Map.put(:chain_name, nil)
+          |> Map.put(:chain_symbol, nil)
+          |> Map.put(:chain_icon_url, nil)
+
+        info
+    end
   end
 
   @spec erc721_or_erc1155_token_instance_from_token_id_and_token_address(binary(), Hash.Address.t()) ::

@@ -41,26 +41,6 @@ defmodule Explorer.ExchangeRatesTest do
     assert table[:write_concurrency]
   end
 
-  test "handle_info with :update" do
-    bypass = Bypass.open()
-
-    Bypass.expect(bypass, "GET", "/", fn conn ->
-      Conn.resp(conn, 200, "{}")
-    end)
-
-    stub(TestSource, :source_url, fn -> "http://localhost:#{bypass.port}" end)
-
-    ExchangeRates.init([])
-    state = %{}
-
-    expect(TestSource, :format_data, fn _ -> [Token.null()] end)
-    expect(TestSource, :headers, fn -> [] end)
-    set_mox_global()
-
-    assert {:noreply, ^state} = ExchangeRates.handle_info(:update, state)
-    assert_receive {_, {:ok, [%Token{}]}}
-  end
-
   describe "ticker fetch task" do
     setup do
       ExchangeRates.init([])
@@ -78,40 +58,18 @@ defmodule Explorer.ExchangeRatesTest do
         name: "test_name",
         symbol: "test_symbol",
         usd_value: Decimal.new("1.0"),
-        volume_24h_usd: Decimal.new("1000.0")
+        volume_24h_usd: Decimal.new("1000.0"),
+        mixin_asset_id: "43d61dcd-e413-450d-80b8-101d5e903357"
       }
 
-      expected_symbol = expected_token.symbol
+      expected_mixin_asset_id = expected_token.mixin_asset_id
       expected_tuple = Token.to_tuple(expected_token)
 
       state = %{}
 
       assert {:noreply, ^state} = ExchangeRates.handle_info({nil, {:ok, [expected_token]}}, state)
 
-      assert [^expected_tuple] = :ets.lookup(ExchangeRates.table_name(), expected_symbol)
-    end
-
-    test "with failed fetch" do
-      bypass = Bypass.open()
-
-      Bypass.expect(bypass, "GET", "/", fn conn ->
-        Conn.resp(conn, 200, "{}")
-      end)
-
-      stub(TestSource, :source_url, fn -> "http://localhost:#{bypass.port}" end)
-
-      state = %{}
-
-      expect(TestSource, :format_data, fn _ -> [Token.null()] end)
-      expect(TestSource, :headers, fn -> [] end)
-      set_mox_global()
-
-      assert {:noreply, ^state} = ExchangeRates.handle_info({nil, {:error, "some error"}}, state)
-
-      assert_receive :update
-
-      assert {:noreply, ^state} = ExchangeRates.handle_info(:update, state)
-      assert_receive {_, {:ok, [%Token{}]}}
+      assert [^expected_tuple] = :ets.lookup(ExchangeRates.table_name(), expected_mixin_asset_id)
     end
   end
 
@@ -119,8 +77,8 @@ defmodule Explorer.ExchangeRatesTest do
     ExchangeRates.init([])
 
     rates = [
-      %Token{Token.null() | symbol: "z"},
-      %Token{Token.null() | symbol: "a"}
+      %Token{Token.null() | mixin_asset_id: "z"},
+      %Token{Token.null() | mixin_asset_id: "a"}
     ]
 
     expected_rates = Enum.reverse(rates)
@@ -132,9 +90,9 @@ defmodule Explorer.ExchangeRatesTest do
   test "lookup/1" do
     ExchangeRates.init([])
 
-    z = %Token{Token.null() | symbol: "z"}
+    z = %Token{Token.null() | mixin_asset_id: "z"}
 
-    rates = [z, %Token{Token.null() | symbol: "a"}]
+    rates = [z, %Token{Token.null() | mixin_asset_id: "a"}]
 
     for rate <- rates, do: :ets.insert(ExchangeRates.table_name(), Token.to_tuple(rate))
 

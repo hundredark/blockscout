@@ -13,7 +13,7 @@ defmodule Explorer.ExchangeRates do
   alias Explorer.Counters.Helper
   alias Explorer.ExchangeRates.{Source, Token}
 
-  @interval Helper.cache_period_default_in_minutes("CACHE_EXCHANGE_RATES_PERIOD", 10)
+  @interval Helper.cache_period_default_in_minutes("CACHE_EXCHANGE_RATES_PERIOD", 1)
   @table_name :exchange_rates
 
   @impl GenServer
@@ -94,9 +94,9 @@ defmodule Explorer.ExchangeRates do
   Returns a specific rate from the tracked tickers by symbol
   """
   @spec lookup(String.t()) :: Token.t() | nil
-  def lookup(symbol) do
+  def lookup(asset_id) do
     if store() == :ets && enabled?() do
-      case :ets.lookup(table_name(), symbol) do
+      case :ets.lookup(table_name(), asset_id) do
         [tuple | _] when is_tuple(tuple) -> Token.from_tuple(tuple)
         _ -> nil
       end
@@ -122,7 +122,7 @@ defmodule Explorer.ExchangeRates do
   @spec fetch_rates :: Task.t()
   defp fetch_rates do
     Task.Supervisor.async_nolink(Explorer.MarketTaskSupervisor, fn ->
-      Source.fetch_exchange_rates()
+      Source.fetch_exchange_rates_from_mixin()
     end)
   end
 

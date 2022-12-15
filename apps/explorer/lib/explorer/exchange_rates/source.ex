@@ -2,9 +2,12 @@ defmodule Explorer.ExchangeRates.Source do
   @moduledoc """
   Behaviour for fetching exchange rates from external sources.
   """
+  alias Explorer.{Chain, MixinApi}
   alias Explorer.ExchangeRates.Source.CoinGecko
   alias Explorer.ExchangeRates.Token
   alias HTTPoison.{Error, Response}
+
+  @eth_asset_id "43d61dcd-e413-450d-80b8-101d5e903357"
 
   @doc """
   Fetches exchange rates for currencies/tokens.
@@ -12,7 +15,8 @@ defmodule Explorer.ExchangeRates.Source do
   @spec fetch_exchange_rates(module) :: {:ok, [Token.t()]} | {:error, any}
   def fetch_exchange_rates(source \\ exchange_rates_source()) do
     source_url = source.source_url()
-    fetch_exchange_rates_request(source, source_url, source.headers())
+    resp = fetch_exchange_rates_request(source, source_url, source.headers())
+    update_price_with_mixin_asset(resp)
   end
 
   @spec fetch_exchange_rates_for_token(String.t()) :: {:ok, [Token.t()]} | {:error, any}
@@ -27,6 +31,105 @@ defmodule Explorer.ExchangeRates.Source do
     source_url = CoinGecko.source_url(address_hash)
     headers = CoinGecko.headers()
     fetch_exchange_rates_request(CoinGecko, source_url, headers)
+  end
+
+  def fetch_exchange_rates_from_mixin do
+    {:ok, [eth_rate]} = fetch_exchange_rates()
+
+    resp = MixinApi.request("/network/assets/top")
+
+    case resp do
+      {:ok, asset_list} ->
+        tokens = Chain.list_erc20_tokens_with_mixin_asset_id()
+
+        asset_map =
+          Enum.reduce(asset_list, %{}, fn x, acc ->
+            Map.put(acc, x["asset_id"], x)
+          end)
+
+        token_rate =
+          Enum.map(tokens, fn t ->
+            asset = asset_map[t.mixin_asset_id]
+            get_exchange_rate_token(asset)
+          end)
+
+        token_list = Enum.filter([eth_rate | token_rate], fn t -> not is_nil(t) end)
+
+        {:ok, token_list}
+
+      _ ->
+        {:ok, [eth_rate]}
+    end
+  end
+
+  defp update_price_with_mixin_asset(resp) do
+    asset = fetch_eth_asset()
+
+    case is_nil(asset) do
+      true ->
+        resp
+
+      false ->
+        case resp do
+          {:ok, data} ->
+            token =
+              data
+              |> List.first()
+              |> Map.put(:btc_value, to_decimal(asset["price_btc"]))
+              |> Map.put(:usd_value, to_decimal(asset["price_usd"]))
+              |> Map.put(:mixin_asset_id, asset["asset_id"])
+
+            {:ok, [token]}
+
+          _ ->
+            token_rate = %Token{
+              available_supply: to_decimal(asset["amount"]),
+              total_supply: to_decimal(asset["amount"]),
+              btc_value: to_decimal(asset["price_btc"]),
+              id: "",
+              last_updated: nil,
+              market_cap_usd: to_decimal(asset["capitalization"]),
+              name: asset["name"],
+              symbol: String.upcase(asset["symbol"]),
+              usd_value: to_decimal(asset["price_usd"]),
+              volume_24h_usd: to_decimal(0),
+              mixin_asset_id: asset["asset_id"]
+            }
+
+            {:ok, [token_rate]}
+        end
+    end
+  end
+
+  defp get_exchange_rate_token(asset) do
+    case asset do
+      nil ->
+        nil
+
+      _ ->
+        %Token{
+          available_supply: to_decimal(asset["amount"]),
+          total_supply: to_decimal(asset["total_supply"]),
+          btc_value: to_decimal(asset["price_btc"]),
+          id: "",
+          last_updated: nil,
+          market_cap_usd: to_decimal(asset["capitalization"]),
+          name: asset["name"],
+          symbol: String.upcase(asset["symbol"]),
+          usd_value: to_decimal(asset["price_usd"]),
+          volume_24h_usd: to_decimal(0),
+          mixin_asset_id: asset["asset_id"]
+        }
+    end
+  end
+
+  defp fetch_eth_asset do
+    url = "/network/assets/#{@eth_asset_id}"
+
+    case MixinApi.request(url) do
+      {:ok, asset} -> asset
+      {:error, _} -> nil
+    end
   end
 
   defp fetch_exchange_rates_request(_source, source_url, _headers) when is_nil(source_url),
@@ -112,12 +215,6 @@ defmodule Explorer.ExchangeRates.Source do
 
       {:error, %Error{reason: reason}} ->
         {:error, reason}
-
-      {:error, :nxdomain} ->
-        {:error, "Source is not responsive"}
-
-      {:error, _} ->
-        {:error, "Source unknown response"}
     end
   end
 

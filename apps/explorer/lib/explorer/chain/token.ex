@@ -49,7 +49,8 @@ defmodule Explorer.Chain.Token do
           contract_address_hash: Hash.Address.t(),
           holder_count: non_neg_integer() | nil,
           skip_metadata: boolean(),
-          mixin_asset_id: String.t()
+          mixin_asset_id: String.t() | nil,
+          native_contract_address: String.t() | nil
         }
 
   @derive {Poison.Encoder,
@@ -79,6 +80,7 @@ defmodule Explorer.Chain.Token do
     field(:holder_count, :integer)
     field(:skip_metadata, :boolean)
     field(:mixin_asset_id, :string)
+    field(:native_contract_address, :string)
 
     belongs_to(
       :contract_address,
@@ -93,7 +95,7 @@ defmodule Explorer.Chain.Token do
   end
 
   @required_attrs ~w(contract_address_hash type)a
-  @optional_attrs ~w(cataloged decimals name symbol total_supply skip_metadata mixin_asset_id)a
+  @optional_attrs ~w(cataloged decimals name symbol total_supply skip_metadata mixin_asset_id native_contract_address)a
 
   @doc false
   def changeset(%Token{} = token, params \\ %{}) do

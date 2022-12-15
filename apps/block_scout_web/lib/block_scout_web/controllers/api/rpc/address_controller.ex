@@ -4,10 +4,21 @@ defmodule BlockScoutWeb.API.RPC.AddressController do
   require Decimal
 
   alias BlockScoutWeb.API.RPC.Helpers
-  alias Explorer.{Chain, Etherscan}
+  alias Explorer.{Chain, Etherscan, PagingOptions}
   alias Explorer.Chain.{Address, Wei}
   alias Explorer.Etherscan.{Addresses, Blocks}
   alias Indexer.Fetcher.CoinBalanceOnDemand
+
+  @mvm_default_assets [
+    # BTC
+    "c6d0c728-2624-429b-8e0d-d9d19b6592fa",
+    # EOS
+    "6cfe566e-4aad-470b-8c9a-2fd35b49c68d",
+    # MOB
+    "eea900a8-b327-488c-8d8d-1428702fe240",
+    # USDT ERC20
+    "4d8c508b-91c5-375b-92b0-ee702ed2dac5"
+  ]
 
   def listaccounts(conn, params) do
     options =
@@ -229,49 +240,62 @@ defmodule BlockScoutWeb.API.RPC.AddressController do
          {:block_param, {:ok, block}} <- {:block_param, fetch_block_param(params)},
          {:balance, {:ok, balance}} <- {:balance, Blocks.get_balance_as_of_block(address_hash, block)},
          {:ok, token_list} <- list_tokens(address_hash) do
-      conf = Application.get_env(:block_scout_web, BlockScoutWeb.API.RPC.AddressController)
-      mvm_default_assets = conf[:mvm_default_assets]
-      user_assets_with_balance = Enum.map(token_list, fn x -> to_string(x.contract_address_hash) end)
+      user_assets_with_balance = Enum.map(token_list, fn x -> x.mixin_asset_id end)
 
-      total_assets = Chain.list_top_tokens("")
+      total_assets = Chain.list_top_tokens("", paging_options: %PagingOptions{page_size: 1000})
 
       default_assets =
-        Enum.filter(total_assets, fn x ->
-          contract = to_string(x.contract_address_hash)
+        Enum.map(
+          Enum.filter(total_assets, fn x ->
+            not Enum.member?(user_assets_with_balance, x.mixin_asset_id) and
+              Enum.member?(@mvm_default_assets, x.mixin_asset_id)
+          end),
+          fn x ->
+            x
+            |> Map.from_struct()
+            |> Map.put(:balance, "0")
+          end
+        )
 
-          not Enum.member?(user_assets_with_balance, contract) and
-            Enum.member?(mvm_default_assets, contract)
-        end)
+      eth = %{
+        balance: Decimal.to_string(balance.value),
+        contract_address_hash: "",
+        native_contract_address: "",
+        mixin_asset_id: "43d61dcd-e413-450d-80b8-101d5e903357",
+        name: "Ether",
+        decimals: "18",
+        symbol: "ETH",
+        type: ""
+      }
 
       merged =
-        Enum.map(token_list ++ default_assets, fn x ->
-          %{
-            "balance" =>
-              case Map.has_key?(x, :balance) do
-                true -> to_string(x.balance)
-                _ -> "0"
-              end,
+        Enum.map([eth | token_list ++ default_assets], fn x ->
+          info = Chain.token_add_price_and_chain_info(x)
+
+          asset = %{
+            "balance" => to_string(x.balance),
             "contractAddress" => to_string(x.contract_address_hash),
+            "nativeContractAddress" => if(is_nil(x.native_contract_address), do: "", else: x.native_contract_address),
             "mixinAssetId" => x.mixin_asset_id,
             "name" => x.name,
             "decimals" => to_string(x.decimals),
             "symbol" => x.symbol,
-            "type" => x.type
+            "type" => x.type,
+            "priceUSD" => info.price_usd,
+            "priceBTC" => info.price_btc
           }
-        end)
 
-      merged = [
-        %{
-          "balance" => Decimal.to_string(balance.value),
-          "contractAddress" => "",
-          "mixinAssetId" => "43d61dcd-e413-450d-80b8-101d5e903357",
-          "name" => "Ether",
-          "decimals" => "18",
-          "symbol" => "ETH",
-          "type" => ""
-        }
-        | merged
-      ]
+          if is_nil(info.chain_id) or is_nil(info.chain_name) or is_nil(info.chain_symbol) or
+               is_nil(info.chain_icon_url) do
+            asset
+          else
+            asset
+            |> Map.put("chainId", info.chain_id)
+            |> Map.put("chainName", info.chain_name)
+            |> Map.put("chainSymbol", info.chain_symbol)
+            |> Map.put("chainIconUrl", info.chain_icon_url)
+          end
+        end)
 
       final = Enum.sort_by(merged, fn x -> String.to_integer(x["balance"]) end, :desc)
       render(conn, :assets, %{asset_list: final})
