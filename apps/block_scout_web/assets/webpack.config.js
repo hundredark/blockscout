@@ -170,7 +170,10 @@ const appJs =
         'process.env.NETWORK': JSON.stringify(process.env.NETWORK),
         'process.env.SUBNETWORK': JSON.stringify(process.env.SUBNETWORK),
         'process.env.COIN_NAME': JSON.stringify(process.env.COIN_NAME),
-        'process.env.NETWORK_PATH': JSON.stringify(process.env.NETWORK_PATH)
+        'process.env.MIXPANEL_TOKEN': JSON.stringify(process.env.MIXPANEL_TOKEN),
+        'process.env.MIXPANEL_URL': JSON.stringify(process.env.MIXPANEL_URL),
+        'process.env.AMPLITUDE_API_KEY': JSON.stringify(process.env.AMPLITUDE_API_KEY),
+        'process.env.AMPLITUDE_URL': JSON.stringify(process.env.AMPLITUDE_URL)
       }),
       new webpack.ProvidePlugin({
         process: 'process/browser',
