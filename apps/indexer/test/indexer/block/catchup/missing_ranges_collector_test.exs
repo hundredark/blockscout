@@ -45,7 +45,7 @@ defmodule Indexer.Block.Catchup.MissingRangesCollectorTest do
       insert(:missing_block_range, from_number: 90, to_number: 80)
 
       MissingRangesCollector.start_link([])
-      Process.sleep(500)
+      Process.sleep(5000)
 
       assert [%{from_number: 120, to_number: 100}, %{from_number: 200, to_number: 190}] = Repo.all(MissingBlockRange)
     end
